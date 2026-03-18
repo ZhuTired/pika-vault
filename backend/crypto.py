@@ -7,13 +7,11 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from passlib.context import CryptContext
+import bcrypt
 from backend.models import SystemConfig
 
 # Global variable to store the derived key in memory
 _ENCRYPTION_KEY: Optional[bytes] = None
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_encryption_key() -> Optional[bytes]:
     return _ENCRYPTION_KEY
@@ -42,7 +40,10 @@ def initialize_vault(db: Session, password: str):
     """
     salt = os.urandom(16)
     salt_b64 = base64.b64encode(salt).decode('utf-8')
-    password_hash = pwd_context.hash(password)
+    # Use bcrypt directly
+    password_bytes = password.encode('utf-8')
+    salt_bcrypt = bcrypt.gensalt()
+    password_hash = bcrypt.hashpw(password_bytes, salt_bcrypt).decode('utf-8')
     
     # Store salt and hash
     db.merge(SystemConfig(key="master_salt", value=salt_b64))
@@ -64,7 +65,12 @@ def unlock_vault(db: Session, password: str) -> bool:
     if not salt_entry or not hash_entry:
         return False
         
-    if not pwd_context.verify(password, hash_entry.value):
+    try:
+        password_bytes = password.encode('utf-8')
+        hash_bytes = hash_entry.value.encode('utf-8')
+        if not bcrypt.checkpw(password_bytes, hash_bytes):
+            return False
+    except Exception:
         return False
         
     salt = base64.b64decode(salt_entry.value)
