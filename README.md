@@ -10,7 +10,7 @@
 
 <!-- Screenshot Placeholder -->
 <div align="center">
-  <img src="docs/screenshot.png" alt="PIKA Screenshot" width="800" style="border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+  <img src="docs/screenshot.jpg" alt="PIKA Screenshot" width="800" style="border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
   <p><em>安全 · 极速 · 本地优先</em></p>
 </div>
 
