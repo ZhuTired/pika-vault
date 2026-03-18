@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+pymysql
+cryptography
+pydantic
+pydantic-settings
+python-dotenv
+passlib[bcrypt]
+requests
+beautifulsoup4
