@@ -7,6 +7,10 @@ from backend.models import CredentialType
 class TagList(BaseModel):
     tags: List[str]
 
+class SortUpdate(BaseModel):
+    id: int
+    sort_order: int
+
 # --- Credentials ---
 class CredentialField(BaseModel):
     name: str
@@ -19,6 +23,7 @@ class CredentialBase(BaseModel):
     tags: List[str] = []
     fields: List[CredentialField]
     notes: Optional[str] = None
+    sort_order: int = 0
 
 class CredentialCreate(CredentialBase):
     pass
@@ -29,6 +34,7 @@ class CredentialUpdate(BaseModel):
     tags: Optional[List[str]] = None
     fields: Optional[List[CredentialField]] = None
     notes: Optional[str] = None
+    sort_order: Optional[int] = None
 
 class CredentialResponse(CredentialBase):
     id: int

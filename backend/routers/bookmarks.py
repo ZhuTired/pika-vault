@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 
 from backend.database import get_db
 from backend.models import Bookmark
-from backend.schemas import BookmarkCreate, BookmarkUpdate, BookmarkResponse
+from backend.schemas import BookmarkCreate, BookmarkUpdate, BookmarkResponse, SortUpdate
 
 router = APIRouter(
     prefix="/api/bookmarks",
@@ -95,3 +95,23 @@ def delete_bookmark(bookmark_id: int, db: Session = Depends(get_db)):
     db.delete(db_bookmark)
     db.commit()
     return {"ok": True}
+
+@router.post("/batch-sort")
+def batch_update_sort(updates: List[SortUpdate], db: Session = Depends(get_db)):
+    for update in updates:
+        db.query(Bookmark).filter(Bookmark.id == update.id).update({"sort_order": update.sort_order})
+    db.commit()
+    return {"ok": True}
+
+@router.post("/{bookmark_id}/fetch-favicon")
+def fetch_bookmark_favicon(bookmark_id: int, db: Session = Depends(get_db)):
+    db_bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    if not db_bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    
+    _, fetched_favicon = fetch_metadata(db_bookmark.url)
+    if fetched_favicon:
+        db_bookmark.favicon_url = fetched_favicon
+        db.commit()
+        db.refresh(db_bookmark)
+    return {"favicon_url": db_bookmark.favicon_url}

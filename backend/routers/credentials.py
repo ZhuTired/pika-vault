@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from backend.database import get_db
 from backend.models import Credential
-from backend.schemas import CredentialCreate, CredentialUpdate, CredentialResponse, CredentialField
+from backend.schemas import CredentialCreate, CredentialUpdate, CredentialResponse, CredentialField, SortUpdate
 from backend.crypto import is_vault_unlocked, encrypt_value, decrypt_value
 
 router = APIRouter(
@@ -41,7 +41,8 @@ def read_credentials(
     if search:
         query = query.filter(Credential.name.ilike(f"%{search}%"))
         
-    creds = query.offset(skip).limit(limit).all()
+    # Order by sort_order
+    creds = query.order_by(Credential.sort_order.asc(), Credential.created_at.desc()).offset(skip).limit(limit).all()
     
     # Decrypt sensitive fields
     results = []
@@ -73,6 +74,7 @@ def read_credentials(
             "tags": cred.tags,
             "fields": decrypted_fields,
             "notes": cred.notes,
+            "sort_order": cred.sort_order,
             "created_at": cred.created_at,
             "updated_at": cred.updated_at
         }
@@ -181,5 +183,13 @@ def delete_credential(cred_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Credential not found")
     
     db_cred.is_deleted = True # Soft delete
+    db.commit()
+    return {"ok": True}
+
+@router.post("/batch-sort")
+def batch_update_sort(updates: List[SortUpdate], db: Session = Depends(get_db)):
+    check_vault_status()
+    for update in updates:
+        db.query(Credential).filter(Credential.id == update.id).update({"sort_order": update.sort_order})
     db.commit()
     return {"ok": True}

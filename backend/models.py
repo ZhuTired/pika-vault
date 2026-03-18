@@ -21,6 +21,7 @@ class Credential(Base):
     tags = Column(JSON, default=[]) # List of strings
     fields = Column(JSON, nullable=False) # List of dicts: {"name": str, "value": str, "is_sensitive": bool}
     notes = Column(Text, nullable=True)
+    sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     is_deleted = Column(Boolean, default=False)

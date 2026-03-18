@@ -9,6 +9,7 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
         body {
             @apply bg-zinc-950 text-zinc-100 font-sans antialiased;
@@ -179,10 +180,16 @@
                         <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500"></i>
                         <input v-model="searchQuery" type="text" placeholder="搜索凭证、书签、标签..." class="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-10 pr-4 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder-zinc-600">
                     </div>
-                    <button @click="openAddDrawer" class="ml-4 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors shadow-lg shadow-indigo-500/20">
-                        <i data-lucide="plus" class="w-4 h-4"></i>
-                        新增 {{ currentTab === 'credentials' ? '凭证' : '书签' }}
-                    </button>
+                    <div class="flex items-center gap-4">
+                        <button v-if="currentTab === 'credentials'" @click="isEditMode = !isEditMode" :class="isEditMode ? 'text-brand' : 'text-zinc-400 hover:text-white'" class="text-sm font-medium flex items-center gap-1 transition-colors">
+                            <i :data-lucide="isEditMode ? 'check' : 'layout-grid'" class="w-4 h-4"></i>
+                            {{ isEditMode ? '完成排版' : '编辑排版' }}
+                        </button>
+                        <button @click="openAddDrawer" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors shadow-lg shadow-indigo-500/20">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            新增 {{ currentTab === 'credentials' ? '凭证' : '书签' }}
+                        </button>
+                    </div>
                 </header>
 
                 <!-- Content Area -->
@@ -198,8 +205,13 @@
                     </div>
 
                     <!-- Credentials Grid -->
-                    <div v-if="currentTab === 'credentials' && filteredItems.length > 0" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                        <div v-for="item in filteredItems" :key="item.id" class="group bg-zinc-900 border border-zinc-800 rounded-xl p-5 hover:border-zinc-700 hover:shadow-lg hover:shadow-black/50 transition-all duration-200 relative overflow-hidden">
+                    <div v-if="currentTab === 'credentials' && filteredItems.length > 0" id="credentials-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <div v-for="item in filteredItems" :key="item.id" :data-id="item.id" class="group bg-zinc-900 border border-zinc-800 rounded-xl p-5 hover:border-zinc-700 hover:shadow-lg hover:shadow-black/50 transition-all duration-200 relative overflow-hidden">
+                            <!-- Drag Handle -->
+                            <div v-if="isEditMode" class="drag-handle absolute top-3 right-3 p-1.5 text-zinc-500 hover:text-white cursor-move z-20 bg-zinc-800/80 rounded backdrop-blur-sm">
+                                <i data-lucide="grip-horizontal" class="w-4 h-4"></i>
+                            </div>
+
                             <!-- Type Indicator Bar -->
                             <div class="absolute top-0 left-0 bottom-0 w-1" :class="getTypeColor(item.type)"></div>
                             
@@ -257,7 +269,7 @@
                                      class="w-8 h-8 rounded bg-zinc-800 p-0.5 object-contain flex-shrink-0">
                                 <div class="min-w-0 flex-1">
                                     <h3 class="font-medium text-zinc-200 truncate" :title="item.title">{{ item.title }}</h3>
-                                    <a :href="item.url" target="_blank" class="text-xs text-zinc-500 hover:text-indigo-500 truncate block mt-0.5">{{ item.url }}</a>
+                                    <button @click.prevent="openBookmark(item)" class="text-xs text-zinc-500 hover:text-indigo-500 truncate block mt-0.5 text-left w-full">{{ item.url }}</button>
                                 </div>
                                 <div class="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-2 bg-zinc-900 shadow-md rounded p-1">
                                     <button @click="editItem(item)" class="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded">
@@ -270,9 +282,9 @@
                             </div>
                             <div class="flex items-center justify-between mt-auto pt-3 border-t border-zinc-800/50">
                                 <span class="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">{{ item.category || '未分类' }}</span>
-                                <a :href="item.url" target="_blank" class="text-xs text-indigo-500 hover:underline flex items-center gap-1 font-medium">
+                                <button @click.prevent="openBookmark(item)" class="text-xs text-indigo-500 hover:underline flex items-center gap-1 font-medium">
                                     打开 <i data-lucide="external-link" class="w-3 h-3"></i>
-                                </a>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -399,6 +411,9 @@
                 const selectedCredentialType = ref(null);
                 const selectedBookmarkCategory = ref(null);
                 
+                const isEditMode = ref(false);
+                let sortableInstance = null;
+                
                 const showDrawer = ref(false);
                 const drawerMode = ref('add');
                 const form = ref({});
@@ -505,13 +520,13 @@
                                 c.tags.some(t => t.toLowerCase().includes(q)) || 
                                 c.fields.some(f => f.name.toLowerCase().includes(q)); // Don't search encrypted values usually, but we have decrypted ones here
                             return matchType && matchSearch;
-                        });
+                        }).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
                     } else {
                         return bookmarks.value.filter(b => {
                             const matchCat = !selectedBookmarkCategory.value || b.category === selectedBookmarkCategory.value;
                             const matchSearch = !q || b.title.toLowerCase().includes(q) || b.url.toLowerCase().includes(q);
                             return matchCat && matchSearch;
-                        });
+                        }).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
                     }
                 });
 
@@ -634,12 +649,94 @@
                     form.value.fields.splice(idx, 1);
                 };
 
+                const openBookmark = async (item) => {
+                    window.open(item.url, '_blank');
+                    if (!item.favicon_url || item.favicon_url.includes('google.com/s2')) {
+                        try {
+                            const res = await api.post(`/bookmarks/${item.id}/fetch-favicon`);
+                            if (res.data.favicon_url) {
+                                item.favicon_url = res.data.favicon_url;
+                            }
+                        } catch (e) {
+                            console.error('Failed to fetch favicon', e);
+                        }
+                    }
+                };
+
+                // Routing
+                const parseHash = () => {
+                    const hash = window.location.hash.slice(1);
+                    if (hash.startsWith('/credentials')) {
+                        currentTab.value = 'credentials';
+                        const parts = hash.split('/');
+                        selectedCredentialType.value = parts[2] ? decodeURIComponent(parts[2]) : null;
+                    } else if (hash.startsWith('/bookmarks')) {
+                        currentTab.value = 'bookmarks';
+                        const parts = hash.split('/');
+                        selectedBookmarkCategory.value = parts[2] ? decodeURIComponent(parts[2]) : null;
+                    } else {
+                        currentTab.value = 'credentials';
+                        selectedCredentialType.value = null;
+                    }
+                };
+
+                const updateHash = () => {
+                    if (currentTab.value === 'credentials') {
+                        window.location.hash = `/credentials${selectedCredentialType.value ? '/' + encodeURIComponent(selectedCredentialType.value) : ''}`;
+                    } else if (currentTab.value === 'bookmarks') {
+                        window.location.hash = `/bookmarks${selectedBookmarkCategory.value ? '/' + encodeURIComponent(selectedBookmarkCategory.value) : ''}`;
+                    }
+                };
+
+                watch([currentTab, selectedCredentialType, selectedBookmarkCategory], () => {
+                    updateHash();
+                });
+                
+                window.addEventListener('hashchange', parseHash);
+
+                watch(isEditMode, (val) => {
+                    if (val) {
+                        nextTick(() => {
+                            const el = document.getElementById('credentials-grid');
+                            if (el && typeof Sortable !== 'undefined') {
+                                sortableInstance = new Sortable(el, {
+                                    animation: 150,
+                                    handle: '.drag-handle',
+                                    onEnd: async (evt) => {
+                                        const items = Array.from(el.children);
+                                        const updates = items.map((child, index) => {
+                                            return { id: parseInt(child.dataset.id), sort_order: index };
+                                        });
+                                        try {
+                                            await api.post('/credentials/batch-sort', updates);
+                                            updates.forEach(u => {
+                                                const cred = credentials.value.find(c => c.id === u.id);
+                                                if (cred) cred.sort_order = u.sort_order;
+                                            });
+                                            showToast('排序已保存');
+                                        } catch (e) {
+                                            showToast('排序保存失败', 'error');
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    } else {
+                        if (sortableInstance) {
+                            sortableInstance.destroy();
+                            sortableInstance = null;
+                        }
+                    }
+                });
+
                 // Watchers for icons
                 watch([showDrawer, filteredItems, currentTab, vaultStatus], () => {
                     nextTick(() => lucide.createIcons());
                 });
 
                 onMounted(() => {
+                    if (window.location.hash) parseHash();
+                    else updateHash();
                     checkStatus();
                     lucide.createIcons();
                 });
@@ -654,6 +751,7 @@
                     bookmarks,
                     selectedCredentialType,
                     selectedBookmarkCategory,
+                    isEditMode,
                     showDrawer,
                     drawerMode,
                     form,
@@ -677,6 +775,7 @@
                     formatDate,
                     addFormField,
                     removeFormField,
+                    openBookmark,
                     onUrlBlur
                 };
             }
